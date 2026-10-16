@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PopPay Hub</title>
+<style>
+:root{
+  --bg:#0f1419;--panel:#171e26;--line:#2a3644;--text:#e8eef4;--muted:#8fa3b8;
+  --ok:#2ecc71;--warn:#f0b429;--err:#e74c3c;--btn:#1d2a38;--side:300px;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:Segoe UI,system-ui,sans-serif;background:var(--bg);color:var(--text);display:flex}
+aside{
+  width:var(--side);flex:0 0 var(--side);border-right:1px solid var(--line);
+  background:#121820;display:flex;flex-direction:column;min-height:100vh
+}
+main{flex:1;display:flex;flex-direction:column;min-width:0}
+h1{margin:0;font-size:16px;padding:12px 14px 2px}
+.sub{color:var(--muted);font-size:11px;padding:0 14px 8px}
+.bar{padding:0 12px 8px;display:flex;flex-direction:column;gap:6px}
+.row{display:flex;gap:6px}
+input,select,button{
+  border:1px solid var(--line);background:var(--panel);color:var(--text);
+  border-radius:6px;padding:7px 9px;font-size:12px
+}
+input,select{width:100%}
+button{cursor:pointer;background:var(--btn);white-space:nowrap}
+button:hover{border-color:#4a5d73}
+button.on{border-color:#2d6a4f;color:#9dffc7}
+button.retry{background:#1a2f45;border-color:#2d5a80;color:#9fd0ff}
+button.danger{background:#3a1b1b;border-color:#7a3030;color:#ffb4b4}
+.list{overflow:auto;flex:1;padding:0 8px 10px}
+.item{
+  display:block;width:100%;text-align:left;padding:8px 10px;margin:0 0 4px;
+  border:1px solid transparent;border-radius:6px;background:transparent;color:var(--text)
+}
+.item:hover{background:var(--panel);border-color:var(--line)}
+.item.active{background:#163056;border-color:#2d5a80}
+.item.down{opacity:.7}
+.item.fail{border-color:#7a3030;background:#2a1515}
+.item b{display:block;font-size:13px}
+.item span{display:block;font-size:11px;color:var(--muted)}
+.top{display:flex;gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.top strong{font-size:14px}
+.top a{color:#9fd0ff;font-size:12px;word-break:break-all}
+iframe{flex:1;border:0;width:100%;background:#0b0f14;min-height:240px}
+.empty{margin:auto;color:var(--muted);padding:40px;text-align:center}
+.pill{display:inline-block;font-size:11px;border:1px solid var(--line);border-radius:999px;padding:2px 8px;color:var(--muted);margin-right:4px}
+.pill.on{color:var(--ok);border-color:#1f5a38;background:#143221}
+.pill.off{color:#ff9f9f;border-color:#7a3030;background:#3a1b1b}
+.pill.warn{color:var(--warn);border-color:#7a5f20;background:#3a2e12}
+.failbox{max-height:220px;overflow:auto;border-top:1px solid var(--line);background:#121820}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left}
+th{color:var(--muted);position:sticky;top:0;background:#121820}
+.mono{font-family:Consolas,monospace;font-size:11px;word-break:break-all}
+.badge{padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700;border:1px solid #7a3030;background:#3a1b1b;color:#ff9f9f}
+.toast{position:fixed;right:16px;bottom:16px;max-width:420px;padding:12px 14px;border-radius:8px;background:#3a1b1b;border:1px solid #7a3030;display:none;z-index:50;font-size:13px}
+.toast.show{display:block}
+.n{float:right;background:#3a1b1b;color:#ff9f9f;border-radius:999px;padding:0 6px;font-size:11px}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<aside>
+  <h1>PopPay Hub</h1>
+  <div class="sub" id="stateline">Loading…</div>
+  <div class="bar">
+    <input id="q" placeholder="Cari brand / host">
+    <div class="row">
+      <select id="flt">
+        <option value="">Semua</option>
+        <option value="fail">Ada FAIL</option>
+        <option value="down">Down</option>
+        <option value="nosess">Session mati</option>
+      </select>
+      <button id="btnNotif" title="Browser notification">Notif</button>
+      <button id="btnSound" class="on" title="Beep">Sound</button>
+    </div>
+  </div>
+  <div class="list" id="list"></div>
+</aside>
+<main>
+  <div class="top">
+    <strong id="title">Pilih brand</strong>
+    <span class="pill" id="live">poll 15s</span>
+    <a id="open" target="_blank" rel="noopener"></a>
+  </div>
+  <iframe id="frame" title="brand ui" class="hidden"></iframe>
+  <div class="empty" id="hint">Pilih brand di kiri. Notif FAIL lewat Windows (Hub jalan = toast muncul, tab boleh ditutup).</div>
+  <div class="failbox" id="failbox">
+    <table>
+      <thead><tr><th>Brand</th><th>User</th><th>Amt</th><th>Refid</th><th></th></tr></thead>
+      <tbody id="failbody"><tr><td colspan="5" class="empty">Belum ada FAIL</td></tr></tbody>
+    </table>
+  </div>
+</main>
+<div class="toast" id="toast"></div>
+<script>
+const SEEN_KEY='poppay_hub_seen_v1';
+let brands=[], failRows=[], failCount={}, selected='', soundOn=true, primed=false;
+try{ soundOn = localStorage.getItem('poppay_hub_sound')!=='0'; }catch(e){}
+document.getElementById('btnSound').classList.toggle('on', soundOn);
+
+function esc(s){return String(s||'').replace(/[&<>"'`]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','`':''}[c]));}
+function toast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg;
+  el.className='toast show';
+  setTimeout(()=>el.classList.remove('show'), 5000);
+}
+function beep(){
+  if(!soundOn) return;
+  try{
+    const c=new (window.AudioContext||window.webkitAudioContext)();
+    const o=c.createOscillator(); const g=c.createGain();
+    o.frequency.value=880; o.type='square'; g.gain.value=0.07;
+    o.connect(g); g.connect(c.destination); o.start();
+    setTimeout(()=>{ try{o.stop(); c.close();}catch(e){} }, 200);
+  }catch(e){}
+}
+function notify(title, body){
+  toast(title+' — '+body);
+  beep();
+  if(window.Notification && Notification.permission==='granted'){
+    try{ new Notification(title,{body, tag:title+body.slice(0,32)}); }catch(e){}
+  }
+}
+function seenSet(){
+  try{ return new Set(JSON.parse(localStorage.getItem(SEEN_KEY)||'[]')); }
+  catch(e){ return new Set(); }
+}
+function saveSeen(set){
+  try{ localStorage.setItem(SEEN_KEY, JSON.stringify([...set].slice(-800))); }catch(e){}
+}
+function keyOf(x){ return (x.brand_id||'')+'|'+(x.refid||''); }
+
+function filtered(){
+  const q=(document.getElementById('q').value||'').toLowerCase();
+  const f=document.getElementById('flt').value;
+  return brands.filter(b=>{
+    const n=failCount[b.id]||0;
+    if(f==='fail' && n<1) return false;
+    if(f==='down' && b.ok) return false;
+    if(f==='nosess' && b.session_valid===true) return false;
+    if(!q) return true;
+    return (b.name+' '+b.id+' '+b.host+' '+(b.code||'')).toLowerCase().includes(q);
+  }).sort((a,b)=>{
+    const fa=failCount[a.id]||0, fb=failCount[b.id]||0;
+    if(!!fa!==!!fb) return fb-fa;
+    if(!!a.ok!==!!b.ok) return (a.ok?1:0)-(b.ok?1:0);
+    return a.name.localeCompare(b.name);
+  });
+}
+function renderList(){
+  const el=document.getElementById('list');
+  const rows=filtered();
+  el.innerHTML = rows.map(b=>{
+    const n=failCount[b.id]||0;
+    const sess = !b.ok ? 'DOWN' : (b.session_valid===true ? 'session OK' : 'session mati');
+    const cls = [selected===b.id?'active':'', !b.ok?'down':'', n?'fail':''].join(' ');
+    return `<button class="item ${cls}" data-id="${esc(b.id)}">
+      <b>${esc(b.name)} ${n?`<span class="n">${n}</span>`:''}</b>
+      <span>${esc(b.id)} · ${esc(b.host)}:${esc(b.port)} · ${sess}</span>
+    </button>`;
+  }).join('') || '<div class="sub">Tidak ada</div>';
+  el.querySelectorAll('.item').forEach(btn=>btn.onclick=()=>openBrand(btn.dataset.id));
+}
+function openBrand(id){
+  const b=brands.find(x=>x.id===id); if(!b) return;
+  selected=id;
+  document.getElementById('title').textContent=b.name+' / '+b.id;
+  const a=document.getElementById('open'); a.href=b.ui; a.textContent=b.ui;
+  document.getElementById('hint').classList.add('hidden');
+  const f=document.getElementById('frame');
+  f.classList.remove('hidden');
+  f.src=b.ui;
+  renderList();
+}
+function renderFails(){
+  const tb=document.getElementById('failbody');
+  if(!failRows.length){
+    tb.innerHTML='<tr><td colspan="5" class="empty">Tidak ada FAIL</td></tr>';
+    return;
+  }
+  tb.innerHTML=failRows.map(x=>`<tr>
+    <td><a href="#" data-open="${esc(x.brand_id)}">${esc(x.brand_name||x.brand_id)}</a></td>
+    <td>${esc(x.username||x.user||'')}</td>
+    <td>${esc(x.amount||'')}</td>
+    <td class="mono">${esc(x.refid||'')}</td>
+    <td>
+      <span class="badge">FAIL</span>
+      <button class="retry" data-retry="${esc(x.brand_id)}|${esc(x.refid)}">Retry</button>
+    </td>
+  </tr>`).join('');
+  tb.querySelectorAll('[data-open]').forEach(a=>a.onclick=e=>{ e.preventDefault(); openBrand(a.dataset.open); });
+  tb.querySelectorAll('[data-retry]').forEach(btn=>btn.onclick=()=>{
+    const [bid,refid]=btn.dataset.retry.split('|');
+    retryOne(bid, refid);
+  });
+}
+async function retryOne(bid, refid){
+  const d=await api(`/api/brand/${encodeURIComponent(bid)}/retry-refid?refid=${encodeURIComponent(refid)}`);
+  toast(d.message||d.error||JSON.stringify(d));
+  loadFail(true);
+}
+function setTitle(){
+  const n=failRows.length;
+  const down=brands.filter(b=>!b.ok).length;
+  document.title = (n?`(${n} FAIL) `:'') + 'PopPay Hub';
+  const sess=brands.filter(b=>b.session_valid===true).length;
+  document.getElementById('stateline').innerHTML =
+    `<span class="pill">${brands.length} brand</span>`+
+    `<span class="pill on">${brands.filter(b=>b.ok).length} up</span>`+
+    `<span class="pill off">${down} down</span>`+
+    `<span class="pill ${n?'off':'on'}">${n} FAIL</span>`+
+    `<span class="pill">${sess} session</span>`;
+}
+async function api(url){
+  const r=await fetch(url);
+  const ct=(r.headers.get('content-type')||'');
+  const text=await r.text();
+  if(!ct.includes('json') && text.trim().startsWith('<')){
+    throw new Error('API '+r.status+' HTML bukan JSON: '+url);
+  }
+  try{ return JSON.parse(text); }
+  catch(e){ throw new Error('JSON parse gagal '+url); }
+}
+async function loadOverview(){
+  const d=await api('/api/overview');
+  brands=d.brands||[];
+  setTitle();
+  renderList();
+}
+async function loadFail(force){
+  const d=await api('/api/fail?per_page=15'+(force?'&force=1':''));
+  failRows=d.refids||[];
+  failCount={};
+  failRows.forEach(x=>{
+    const id=x.brand_id; if(!id) return;
+    failCount[id]=(failCount[id]||0)+1;
+  });
+  const seen=seenSet();
+  const fresh=[];
+  failRows.forEach(x=>{
+    const k=keyOf(x);
+    if(!k.endsWith('|') && !seen.has(k)){
+      if(primed) fresh.push(x);
+      seen.add(k);
+    }
+  });
+  primed=true;
+  saveSeen(seen);
+  if(fresh.length){
+    const x=fresh[0];
+    const extra=fresh.length>1 ? ` (+${fresh.length-1})` : '';
+    notify('FAIL '+ (x.brand_name||x.brand_id), (x.username||'')+' '+ (x.amount||'')+' '+ (x.refid||'')+extra);
+  }
+  setTitle();
+  renderList();
+  renderFails();
+}
+document.getElementById('q').addEventListener('input', renderList);
+document.getElementById('flt').addEventListener('change', renderList);
+document.getElementById('btnSound').onclick=()=>{
+  soundOn=!soundOn;
+  try{ localStorage.setItem('poppay_hub_sound', soundOn?'1':'0'); }catch(e){}
+  document.getElementById('btnSound').classList.toggle('on', soundOn);
+  if(soundOn) beep();
+};
+document.getElementById('btnNotif').onclick=async ()=>{
+  if(!window.Notification){ toast('Browser tidak support Notification'); return; }
+  const p=await Notification.requestPermission();
+  document.getElementById('btnNotif').classList.toggle('on', p==='granted');
+  toast(p==='granted' ? 'Notif ON — tab tetap buka' : 'Notif '+p);
+  if(p==='granted') notify('PopPay Hub', 'Notifikasi FAIL aktif');
+};
+if(window.Notification && Notification.permission==='granted'){
+  document.getElementById('btnNotif').classList.add('on');
+}
+loadOverview().then(()=>loadFail(false)).catch(e=>toast(String(e)));
+setInterval(()=>loadOverview().catch(()=>{}), 15000);
+setInterval(()=>loadFail(false).catch(()=>{}), 20000);
+</script>
+</body>
+</html>

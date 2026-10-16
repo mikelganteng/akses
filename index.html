@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PopPay Hub</title>
+<style>
+:root{
+  --bg:#0f1419;--panel:#171e26;--line:#2a3644;--text:#e8eef4;--muted:#8fa3b8;
+  --ok:#2ecc71;--btn:#1d2a38;--side:280px;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:Segoe UI,system-ui,sans-serif;background:var(--bg);color:var(--text);display:flex}
+aside{
+  width:var(--side);flex:0 0 var(--side);border-right:1px solid var(--line);
+  background:#121820;display:flex;flex-direction:column;min-height:100vh
+}
+main{flex:1;display:flex;flex-direction:column;min-width:0}
+h1{margin:0;font-size:16px;padding:14px 14px 4px}
+.sub{color:var(--muted);font-size:12px;padding:0 14px 10px}
+.bar{padding:0 14px 10px;display:flex;flex-direction:column;gap:6px}
+input,select,button{
+  border:1px solid var(--line);background:var(--panel);color:var(--text);
+  border-radius:6px;padding:8px 10px;font-size:13px;width:100%
+}
+button{cursor:pointer;background:var(--btn)}
+button:hover{border-color:#4a5d73}
+.list{overflow:auto;flex:1;padding:0 8px 12px}
+.item{
+  display:block;width:100%;text-align:left;padding:8px 10px;margin:0 0 4px;
+  border:1px solid transparent;border-radius:6px;background:transparent;color:var(--text)
+}
+.item:hover{background:var(--panel);border-color:var(--line)}
+.item.active{background:#163056;border-color:#2d5a80}
+.item b{display:block;font-size:13px}
+.item span{display:block;font-size:11px;color:var(--muted)}
+.top{
+  display:flex;gap:8px;align-items:center;padding:10px 14px;
+  border-bottom:1px solid var(--line);flex-wrap:wrap
+}
+.top strong{font-size:14px}
+.top a{color:#9fd0ff;font-size:12px;word-break:break-all}
+iframe{flex:1;border:0;width:100%;background:#0b0f14}
+.empty{margin:auto;color:var(--muted);padding:40px;text-align:center}
+.pill{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:2px 8px;color:var(--muted)}
+</style>
+</head>
+<body>
+<aside>
+  <h1>PopPay Hub</h1>
+  <div class="sub">Tanpa Python. Klik brand = UI transaksi di kanan. Double-click file ini.</div>
+  <div class="bar">
+    <input id="q" placeholder="Cari brand / host">
+    <select id="host"><option value="">Semua VPS</option></select>
+  </div>
+  <div class="list" id="list"></div>
+</aside>
+<main>
+  <div class="top">
+    <strong id="title">Pilih brand</strong>
+    <span class="pill" id="count"></span>
+    <a id="open" target="_blank" rel="noopener"></a>
+    <button id="newtab" style="width:auto;padding:7px 12px" hidden>Open tab baru</button>
+  </div>
+  <iframe id="frame" title="brand ui" hidden></iframe>
+  <div class="empty" id="hint">Pilih brand di kiri. Retry / BO Check tetap di UI aslinya.</div>
+</main>
+<script>
+const BRANDS = [
+  {"id":"HTBT","name":"HotelBet","ui":"http://62.146.232.58:3000/transactions"},
+  {"id":"BAMHK","name":"BambuHoki","ui":"http://62.146.232.58:3001/transactions"},
+  {"id":"UNIBT","name":"UnikBet","ui":"http://62.146.232.58:3002/transactions"},
+  {"id":"MGDW88","name":"MegaDewa88","ui":"http://62.146.232.58:3004/transactions"},
+  {"id":"RJPOKE","name":"RAJAPOKER","ui":"http://194.233.74.58:3000/"},
+  {"id":"PEM188","name":"Pemain188","ui":"http://109.123.237.125:3000/transactions"},
+  {"id":"DB69","name":"Dubai69","ui":"http://109.123.237.28:3001/transactions"},
+  {"id":"NAK138","name":"NAIK138","ui":"http://109.123.237.28:3002/transactions"},
+  {"id":"SIP","name":"SIP69","ui":"http://109.123.237.28:3003/transactions"},
+  {"id":"PG138","name":"PG138","ui":"http://119.8.189.110:3001/transactions"},
+  {"id":"JJW","name":"JJW","ui":"http://185.227.135.8:3005/transactions"},
+  {"id":"UGRJ","name":"UGRJ","ui":"http://185.227.135.8:3000/transactions"},
+  {"id":"LSPIN","name":"LSPIN","ui":"http://185.227.135.8:3011/transactions"},
+  {"id":"IDE","name":"IDE","ui":"http://62.146.232.58:3006/transactions"},
+  {"id":"BGKL69","name":"BGKL69","ui":"http://119.8.189.110:3000/transactions"},
+  {"id":"TKTK77","name":"TKTK77","ui":"http://62.146.232.58:3005/transactions"},
+  {"id":"S88","name":"S88","ui":"http://84.247.144.195:3012/transactions"},
+  {"id":"HKP99","name":"HKP99","ui":"http://84.247.144.195:3003/transactions"},
+  {"id":"RJBOM","name":"RJBOM","ui":"http://185.227.135.8:3013/transactions"},
+  {"id":"MBR77","name":"MBR77","ui":"http://109.123.237.125:3001/transactions"},
+  {"id":"ADM77","name":"ADM77","ui":"http://119.8.189.110:3003/transactions"},
+  {"id":"BUKA","name":"BUKA","ui":"http://109.123.237.28:3010/transactions"},
+  {"id":"MNG77","name":"MNG77","ui":"http://119.8.189.110:3004/transactions"},
+  {"id":"BK77","name":"BK77","ui":"http://119.8.189.110:3002/transactions"},
+  {"id":"MC69","name":"MC69","ui":"http://109.123.237.125:3002/transactions"},
+  {"id":"MPSGO","name":"MPSGO","ui":"http://84.247.144.195:3002/transactions"},
+  {"id":"MSG","name":"MSG","ui":"http://84.247.144.195:3010/transactions"},
+  {"id":"MJG","name":"MJG","ui":"http://84.247.144.195:3009/transactions"},
+  {"id":"JJ","name":"JJ","ui":"http://84.247.144.195:3008/transactions"},
+  {"id":"SEVEN77","name":"SEVEN77","ui":"http://109.123.237.28:3004/transactions"},
+  {"id":"VICTORY77","name":"VICTORY77","ui":"http://109.123.237.28:3005/transactions"},
+  {"id":"QRIS123","name":"QRIS123","ui":"http://109.123.237.125:3003/transactions"},
+  {"id":"DETIK123","name":"DETIK123","ui":"http://109.123.237.125:3004/transactions"},
+  {"id":"GCP123","name":"GCP123","ui":"http://109.123.237.125:3005/transactions"},
+  {"id":"GCR96","name":"GCR96","ui":"http://109.123.237.28:3006/transactions"},
+  {"id":"ROYALS98","name":"ROYALS98","ui":"http://194.233.74.58:3001/"},
+  {"id":"METASUI","name":"METASUI","ui":"http://185.227.135.8:3022/transactions"},
+  {"id":"BULL007","name":"BULL007","ui":"http://194.233.74.58:3022/transactions"},
+  {"id":"LAMBO234","name":"LAMBO234","ui":"http://185.227.135.8:3021/transactions"},
+  {"id":"EPSI99","name":"EPSI99","ui":"http://185.227.135.8:3020/transactions"},
+  {"id":"BDDR122","name":"BDDR122","ui":"http://185.227.135.8:3019/transactions"},
+  {"id":"KTPT123","name":"KTPT123","ui":"http://185.227.135.8:3018/transactions"},
+  {"id":"SMR99","name":"SMR99","ui":"http://185.227.135.8:3017/transactions"},
+  {"id":"ATLAS98","name":"ATLAS98","ui":"http://185.227.135.8:3016/transactions"},
+  {"id":"BESTIEB88","name":"BESTIEB88","ui":"http://185.227.135.8:3015/transactions"},
+  {"id":"MDL50","name":"MDL50","ui":"http://84.247.144.195:3013/transactions"},
+  {"id":"DDAR88","name":"DDAR88","ui":"http://194.233.74.58:3029/transactions"},
+  {"id":"MRTBK188","name":"MRTBK188","ui":"http://194.233.74.58:3028/transactions"},
+  {"id":"KPUTT88","name":"KPUTT88","ui":"http://62.146.232.58:3013/transactions"}
+];
+function hostOf(u){ try { return new URL(u).host; } catch(e){ return ''; } }
+const hosts = [...new Set(BRANDS.map(b=>hostOf(b.ui).split(':')[0]))].sort();
+const hostSel = document.getElementById('host');
+hosts.forEach(h=>{
+  const o=document.createElement('option'); o.value=h; o.textContent=h; hostSel.appendChild(o);
+});
+document.getElementById('count').textContent = BRANDS.length+' brand';
+let selected='';
+function filtered(){
+  const q=(document.getElementById('q').value||'').toLowerCase();
+  const h=hostSel.value;
+  return BRANDS.filter(b=>{
+    const host=hostOf(b.ui);
+    if(h && !host.startsWith(h)) return false;
+    if(!q) return true;
+    return (b.name+' '+b.id+' '+host).toLowerCase().includes(q);
+  });
+}
+function render(){
+  const el=document.getElementById('list');
+  const rows=filtered();
+  el.innerHTML = rows.map(b=>`
+    <button class="item ${selected===b.id?'active':''}" data-id="${b.id}">
+      <b>${b.name}</b>
+      <span>${b.id} · ${hostOf(b.ui)}</span>
+    </button>`).join('') || '<div class="sub">Tidak ada</div>';
+  el.querySelectorAll('.item').forEach(btn=>btn.onclick=()=>openBrand(btn.dataset.id));
+}
+function openBrand(id){
+  const b=BRANDS.find(x=>x.id===id); if(!b) return;
+  selected=id;
+  document.getElementById('title').textContent = b.name+' / '+b.id;
+  const a=document.getElementById('open');
+  a.href=b.ui; a.textContent=b.ui;
+  document.getElementById('newtab').hidden=false;
+  document.getElementById('newtab').onclick=()=>window.open(b.ui,'_blank');
+  document.getElementById('hint').hidden=true;
+  const f=document.getElementById('frame');
+  f.hidden=false;
+  f.src=b.ui;
+  render();
+  location.hash=id;
+}
+document.getElementById('q').addEventListener('input', render);
+hostSel.addEventListener('change', render);
+render();
+const hash=(location.hash||'').replace('#','');
+if(hash) openBrand(hash.toUpperCase());
+</script>
+</body>
+</html>
